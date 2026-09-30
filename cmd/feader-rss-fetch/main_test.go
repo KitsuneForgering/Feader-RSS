@@ -14,6 +14,7 @@ import (
 
 	readerArticle "github.com/KitsuneSemCalda/feader-rss/internal/article"
 	"github.com/KitsuneSemCalda/feader-rss/internal/feed"
+	"github.com/KitsuneSemCalda/feader-rss/internal/localfile"
 	"github.com/KitsuneSemCalda/feader-rss/internal/opml"
 	"github.com/KitsuneSemCalda/feader-rss/internal/store"
 )
@@ -737,5 +738,28 @@ func TestCLIOperationalErrorPaths(t *testing.T) {
 	})
 	if code != 1 || stderr == "" {
 		t.Fatalf("missing migration JSON: code=%d stderr=%q", code, stderr)
+	}
+}
+
+func TestCLIRejectsOversizedLocalFiles(t *testing.T) {
+	padding := strings.Repeat(" ", localfile.MaxConfigBytes)
+	bigConfig := writeCLIFile(t, "big-config.json", `{"feeds":[]}`+padding)
+	smallOPML := writeCLIFile(t, "small.opml", `<?xml version="1.0"?><opml version="2.0"><body><outline text="A" xmlUrl="https://a.test/feed"/></body></opml>`)
+	bigOPML := writeCLIFile(t, "big.opml", `<?xml version="1.0"?><opml version="2.0"><body></body></opml>`+strings.Repeat(" ", localfile.MaxOPMLBytes))
+	bigLegacy := writeCLIFile(t, "items.json", `{"items":[]}`+strings.Repeat(" ", localfile.MaxLegacyStateBytes))
+
+	for name, args := range map[string][]string{
+		"opml-export config": {"opml-export", "--config", bigConfig},
+		"opml-import config": {"opml-import", "--config", bigConfig, "--input", smallOPML},
+		"opml-import input":  {"opml-import", "--config", filepath.Join(t.TempDir(), "c.json"), "--input", bigOPML},
+		"migrate legacy":     {"migrate", "--db", filepath.Join(t.TempDir(), "items.db"), "--json", bigLegacy},
+	} {
+		_, stderr, code := captureCLI(t, func() int { return run(args) })
+		if code != 1 || !strings.Contains(stderr, "byte limit") {
+			t.Errorf("%s: code=%d stderr=%q", name, code, stderr)
+		}
+	}
+	if data, err := os.ReadFile(bigConfig); err != nil || !strings.HasPrefix(string(data), `{"feeds":[]}`) {
+		t.Fatalf("oversized config must be left untouched: %v", err)
 	}
 }

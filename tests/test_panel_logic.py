@@ -8,6 +8,7 @@ import json
 import re
 import shutil
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -17,6 +18,7 @@ FUNCTIONS = [
     "normalizeMaxFeeds", "sanitizeFeeds", "addFeed", "firstPageLimit", "currentPageLimit",
     "replaceArticles", "phrasePool", "pickPhrase", "refreshedLabel", "caughtUpMessage", "spinnerGlyph", "loadingLabel", "listFooterText", "setMaxFeeds", "loadMore", "appendMore", "maybeLoadMore",
     "markRead", "persistMarkRead", "loadArticle", "drainQueuedArticle", "showArticle", "mergeArticle", "hideArticle",
+    "boundedReadCommand", "parseBoundedRead", "applyConfigRead", "applyStateRead",
 ]
 
 
@@ -50,6 +52,7 @@ const root = {{
   articleLoading: false, articleContent: "", articleError: "", articleQueuedNext: null,
   articleProcess: {{ running: false, command: null }},
   globalUnreadCount: -1,
+  maxSettingsFileBytes: 1048576, stateRead: {{ running: false }}, searchQuery: "", stateReady: false,
   Quickshell: {{ execDetached: () => {{}} }},
   updateUnreadNotification: () => {{}},
 }};
@@ -58,6 +61,7 @@ with (root) {{
   root.listProcess = root.listProcess; root.searchProcess = root.searchProcess;
   root.moreProcess = root.moreProcess;
   const listProcess = root.listProcess, searchProcess = root.searchProcess, moreProcess = root.moreProcess;
+  const stateRead = root.stateRead;
   const scrollArea = root.scrollArea, feedModel = root.feedModel, fetchBinary = root.fetchBinary, dbPath = root.dbPath;
   const out = (() => {{ {scenario} }})();
   console.log(JSON.stringify(out));
@@ -339,6 +343,109 @@ class DelightTests(unittest.TestCase):
           return [a, b, c];
         """)
         self.assertEqual(got, [12, 12, 30])
+
+
+@unittest.skipUnless(shutil.which("node"), "node is required to run Panel.qml logic")
+class BoundedSettingsReadTests(unittest.TestCase):
+    """rss-reader.json and preferences.json must never be read unbounded."""
+
+    LIMIT = 64
+
+    def read(self, path, limit=LIMIT):
+        command = run_js(f"return boundedReadCommand({json.dumps(str(path))}, {limit});")
+        done = subprocess.run(command, capture_output=True, timeout=10)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        output = done.stdout.decode()
+        return output, run_js(f"return parseBoundedRead({json.dumps(output)}, {limit});")
+
+    def test_small_file_is_read_whole(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rss-reader.json"
+            path.write_text('{"feeds": []}')
+            _, got = self.read(path)
+            self.assertEqual(got, {"state": "ok", "text": '{"feeds": []}'})
+
+    def test_file_at_the_limit_is_accepted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rss-reader.json"
+            path.write_text("x" * self.LIMIT)
+            _, got = self.read(path)
+            self.assertEqual(got["state"], "ok")
+            self.assertEqual(len(got["text"]), self.LIMIT)
+
+    def test_oversized_file_is_rejected_without_being_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rss-reader.json"
+            # Multi-byte padding: a character-length check alone would let
+            # this through, the byte-size check must not.
+            path.write_text('{"feeds": [], "pad": "' + "é" * 5_000_000 + '"}')
+            output, got = self.read(path)
+            self.assertEqual(output, "L")
+            self.assertEqual(got, {"state": "tooLarge", "text": ""})
+            _, got = self.read(path, 1048576)
+            self.assertEqual(got["state"], "tooLarge")
+
+    def test_multibyte_file_just_over_the_limit_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "preferences.json"
+            path.write_text("é" * (self.LIMIT // 2) + "x")  # LIMIT + 1 bytes, fewer chars
+            _, got = self.read(path)
+            self.assertEqual(got["state"], "tooLarge")
+
+    def test_missing_dangling_and_non_regular_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            (base / "dangling.json").symlink_to(base / "nowhere.json")
+            (base / "dir.json").mkdir()
+            self.assertEqual(self.read(base / "absent.json")[1]["state"], "missing")
+            self.assertEqual(self.read(base / "dangling.json")[1]["state"], "error")
+            self.assertEqual(self.read(base / "dir.json")[1]["state"], "error")
+
+    def test_paths_are_passed_as_arguments_not_interpolated(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "$(touch pwned) ; x.json"
+            path.write_text("{}")
+            _, got = self.read(path)
+            self.assertEqual(got, {"state": "ok", "text": "{}"})
+            self.assertFalse((Path(tmp) / "pwned").exists())
+            self.assertFalse(Path("pwned").exists())
+
+    def test_parse_rejects_unknown_and_oversized_payloads(self):
+        got = run_js("""
+          return [parseBoundedRead('', 4), parseBoundedRead(null, 4), parseBoundedRead('Zabc', 4),
+                  parseBoundedRead('D12345', 4).state, parseBoundedRead('D1234', 4).state];
+        """)
+        self.assertEqual(got[:3], [{"state": "error", "text": ""}] * 3)
+        self.assertEqual(got[3:], ["tooLarge", "ok"])
+
+    def test_oversized_config_is_reported_and_never_parsed(self):
+        got = run_js("""
+          const calls = [];
+          root.loadConfig = (raw) => calls.push(['config', raw]);
+          root.readSettingsFile = (p) => calls.push(['read', p === stateRead]);
+          root.refresh = () => calls.push(['refresh']);
+          applyConfigRead('L');
+          const tooLarge = status;
+          applyConfigRead('M');
+          applyConfigRead('D{"feeds":[]}');
+          return [tooLarge, calls];
+        """)
+        self.assertIn("larger than 1024 KiB", got[0])
+        self.assertEqual(got[1], [["read", True], ["refresh"], ["read", True], ["refresh"],
+                                  ["config", '{"feeds":[]}'], ["read", True], ["refresh"]])
+
+    def test_oversized_preferences_fall_back_to_defaults(self):
+        got = run_js("""
+          const calls = [];
+          root.loadState = (raw) => calls.push(['state', raw]);
+          root.loadInitialArticles = () => calls.push(['initial']);
+          root.requestSearch = () => calls.push(['search']);
+          const warn = console.warn; console.warn = () => calls.push(['warn']);
+          applyStateRead('L');
+          console.warn = warn;
+          return [calls, preferencesReady, stateReady];
+        """)
+        self.assertEqual(got, [[["warn"], ["initial"]], True, True])
 
 
 if __name__ == "__main__":

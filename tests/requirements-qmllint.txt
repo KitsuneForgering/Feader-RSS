@@ -1,0 +1,6 @@
+# qmllint for tests/test_qml_lint.py, pinned by hash. PySide6-Essentials
+# ships the same qmllint as Qt 6.11 (pyside6-qmllint).
+PySide6-Essentials==6.11.2 \
+    --hash=sha256:aaf9f25f0f324874085fa5b26a610318db8a8e243cf85bb3e5400595191c7778
+shiboken6==6.11.2 \
+    --hash=sha256:7a7a0a72a9ed26c9bf77d42246b1c736486befb8f31aa2fb29957ea4cdd1c1c2

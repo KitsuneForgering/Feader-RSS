@@ -14,6 +14,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/KitsuneSemCalda/feader-rss/internal/feed"
+	"github.com/KitsuneSemCalda/feader-rss/internal/localfile"
 )
 
 // legacyStateFilename is the JSON state file older (pre-SQLite) versions of
@@ -301,7 +302,7 @@ func (s *Store) autoMigrateLegacyState(dbPath string) error {
 	}
 
 	legacyPath := filepath.Join(filepath.Dir(dbPath), legacyStateFilename)
-	data, err := os.ReadFile(legacyPath)
+	data, err := localfile.ReadCapped(legacyPath, localfile.MaxLegacyStateBytes)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil

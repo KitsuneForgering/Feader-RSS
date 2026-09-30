@@ -26,6 +26,12 @@ Panel {
   readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state")
     + "/omarchy/rss-reader"
   readonly property string statePath: stateDir + "/preferences.json"
+  // Ceiling on how much of rss-reader.json / preferences.json the shell will
+  // read. Both files are user-editable and restorable from backups, so an
+  // oversized one must be rejected before it is materialized in the
+  // long-lived shell process, not after JSON parsing and the feed limits.
+  // A 100-feed configuration is ~20 KiB; 1 MiB leaves ample headroom.
+  readonly property int maxSettingsFileBytes: 1048576
   readonly property string dbPath: stateDir + "/items.db"
   readonly property string fetchBinary: Qt.resolvedUrl("feader-rss-fetch").toString().replace(/^file:\/\//, "")
 
@@ -408,6 +414,67 @@ Panel {
     // reported to the user as a successful save.
     status = "Saving feeds…"
     refresh()
+  }
+
+  // Reads at most maxBytes of `path` through the shell instead of
+  // FileView.text(), which slurps the whole file into memory. The output is
+  // prefixed with one status byte so the result arrives in a single stream:
+  // M = missing, L = larger than maxBytes (never read), E = not a readable
+  // regular file, D = the contents follow. head -c still bounds the read if
+  // the file grows between the size check and the read.
+  function boundedReadCommand(path, maxBytes) {
+    return ["sh", "-c",
+      'if [ ! -e "$1" ] && [ ! -L "$1" ]; then printf M; '
+      + 'elif [ ! -f "$1" ] || [ ! -r "$1" ]; then printf E; '
+      + 'elif [ "$(wc -c < "$1")" -gt "$2" ]; then printf L; '
+      + 'else printf D; head -c "$2" -- "$1"; fi',
+      "feader-rss-read", String(path), String(maxBytes)]
+  }
+
+  function parseBoundedRead(output, maxBytes) {
+    var raw = String(output || "")
+    var tag = raw.charAt(0)
+    if (tag === "M") return { state: "missing", text: "" }
+    if (tag === "L") return { state: "tooLarge", text: "" }
+    if (tag !== "D") return { state: "error", text: "" }
+    // Defence in depth: the shell already refused oversized files.
+    if (raw.length - 1 > maxBytes) return { state: "tooLarge", text: "" }
+    return { state: "ok", text: raw.slice(1) }
+  }
+
+  function readSettingsFile(proc) {
+    // A change notification while a read is in flight must not be lost.
+    if (proc.running) { proc.rereadRequested = true; return }
+    proc.running = true
+  }
+
+  function applyConfigRead(output) {
+    var result = root.parseBoundedRead(output, root.maxSettingsFileBytes)
+    if (result.state === "ok") root.loadConfig(result.text)
+    else if (result.state === "tooLarge")
+      root.status = "Feed configuration is larger than " + Math.round(root.maxSettingsFileBytes / 1024) + " KiB; not loaded."
+    // A missing file is the normal first-run state; anything else (a
+    // dangling symlink, a directory, a permissions problem) is reported
+    // instead of leaving the panel silently stuck on an empty configuration.
+    else if (result.state === "error") root.status = "Could not load feed configuration."
+    root.readSettingsFile(stateRead)
+    root.refresh()
+  }
+
+  function applyStateRead(output) {
+    var result = root.parseBoundedRead(output, root.maxSettingsFileBytes)
+    if (result.state === "ok") {
+      root.loadState(result.text)
+      root.stateReady = true
+      return
+    }
+    if (result.state === "tooLarge")
+      console.warn("io.github.kitsunesemcalda.feader-rss", "preferences.json exceeds "
+        + root.maxSettingsFileBytes + " bytes; ignoring it")
+    root.preferencesReady = true
+    root.stateReady = true
+    if (root.searchQuery.trim() !== "") root.requestSearch()
+    else root.loadInitialArticles()
   }
 
   function loadState(raw) {
@@ -1094,12 +1161,44 @@ Panel {
     // (or one where "omarchy" hasn't been created yet by anything else),
     // writing rss-reader.json would otherwise fail with no indication why.
     command: ["mkdir", "-p", root.stateDir, root.configHome + "/omarchy"]
-    onExited: { stateFile.reload(); configFile.reload() }
+    onExited: root.readSettingsFile(configRead)
+  }
+
+  // Reads go through configRead/stateRead (bounded); the FileViews below only
+  // write and watch, and never load: preload is off and text()/reload() are
+  // never called on them.
+  Process {
+    id: configRead
+    property bool rereadRequested: false
+    command: root.boundedReadCommand(root.configPath, root.maxSettingsFileBytes)
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applyConfigRead(text)
+    }
+    onExited: {
+      running = false
+      if (rereadRequested) { rereadRequested = false; running = true }
+    }
+  }
+
+  Process {
+    id: stateRead
+    property bool rereadRequested: false
+    command: root.boundedReadCommand(root.statePath, root.maxSettingsFileBytes)
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applyStateRead(text)
+    }
+    onExited: {
+      running = false
+      if (rereadRequested) { rereadRequested = false; running = true }
+    }
   }
 
   FileView {
     id: configFile
     path: root.configPath
+    preload: false
     watchChanges: true
     // Write to a temp file and rename it into place, matching stateFile
     // below, so a crash or power loss mid-write leaves the last known-good
@@ -1107,24 +1206,11 @@ Panel {
     // as empty and silently drop every configured feed on the next load.
     atomicWrites: true
     printErrors: false
-    onLoaded: { root.loadConfig(text()); stateFile.reload(); root.refresh() }
-    // A missing file is the normal first-run state (handled the same way
-    // onLoaded would with no feeds); any other error — e.g. a dangling
-    // symlink or a permissions problem — previously failed completely
-    // silently, leaving the panel stuck on an empty configuration with no
-    // indication why.
-    onLoadFailed: (error) => {
-      if (error !== FileViewError.FileNotFound) {
-        root.status = "Could not load feed configuration: " + FileViewError.toString(error)
-      }
-      stateFile.reload()
-      root.refresh()
-    }
     onSaved: root.status = "Feeds saved"
     onSaveFailed: (error) => {
       root.status = "Could not save feeds: " + FileViewError.toString(error)
     }
-    onFileChanged: reload()
+    onFileChanged: root.readSettingsFile(configRead)
   }
 
   ListModel { id: feedModel }
@@ -1132,21 +1218,15 @@ Panel {
   FileView {
     id: stateFile
     path: root.statePath
+    preload: false
     watchChanges: true
     atomicWrites: true
     printErrors: false
-    onLoaded: { root.loadState(text()); root.stateReady = true }
-    onLoadFailed: {
-      root.preferencesReady = true
-      root.stateReady = true
-      if (root.searchQuery.trim() !== "") root.requestSearch()
-      else root.loadInitialArticles()
-    }
     // Best-effort: UI preferences are not worth interrupting the reader over,
     // but a silent failure here previously left no trace at all.
     onSaveFailed: (error) => console.warn("io.github.kitsunesemcalda.feader-rss",
       "could not save UI preferences: " + FileViewError.toString(error))
-    onFileChanged: reload()
+    onFileChanged: root.readSettingsFile(stateRead)
   }
 
   Process {
@@ -1755,7 +1835,7 @@ Panel {
           text: root.selectedArticle ? root.selectedArticle.title : ""
           color: root.foreground; font.family: root.fontFamily
           font.pixelSize: Style.font.heading; font.bold: true
-          font.underline: titleHover.hovered === true
+          font.underline: titleHover.containsMouse
           wrapMode: Text.WordWrap
           textFormat: Text.PlainText
           MouseArea {

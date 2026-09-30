@@ -31,7 +31,12 @@ jobs:
       - name: Validate manifest JSON
         run: python -m json.tool manifest.json >/dev/null
 
+      - name: Install qmllint
+        run: python -m pip install --require-hashes --only-binary=:all: -r tests/requirements-qmllint.txt
+
       - name: Run tests
+        env:
+          FEADER_REQUIRE_QMLLINT: "1"
         run: python -m unittest discover -s tests -v
 
       - name: Check installer syntax

@@ -19,6 +19,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/KitsuneSemCalda/feader-rss/internal/article"
 	"github.com/KitsuneSemCalda/feader-rss/internal/feed"
+	"github.com/KitsuneSemCalda/feader-rss/internal/localfile"
 	"github.com/KitsuneSemCalda/feader-rss/internal/opml"
 	"github.com/KitsuneSemCalda/feader-rss/internal/store"
 )
@@ -153,7 +155,7 @@ func cmdOPMLExport(args []string) int {
 		fmt.Fprintln(os.Stderr, "opml-export: --config is required")
 		return 2
 	}
-	data, err := os.ReadFile(*configPath)
+	data, err := localfile.ReadCapped(*configPath, localfile.MaxConfigBytes)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -194,13 +196,12 @@ func cmdOPMLImport(args []string) int {
 		fmt.Fprintln(os.Stderr, "opml-import: --config and --input are required")
 		return 2
 	}
-	input, err := os.Open(*inputPath)
+	input, err := localfile.ReadCapped(*inputPath, localfile.MaxOPMLBytes)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	feeds, err := opml.Import(input)
-	input.Close()
+	feeds, err := opml.Import(bytes.NewReader(input))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -245,7 +246,7 @@ func configuredMaxFeeds(config map[string]json.RawMessage) int {
 }
 
 func readConfigForOPML(path string) (map[string]json.RawMessage, []opml.Feed, error) {
-	data, err := os.ReadFile(path)
+	data, err := localfile.ReadCapped(path, localfile.MaxConfigBytes)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, nil, err
@@ -606,7 +607,7 @@ func cmdMigrate(args []string) int {
 		return 2
 	}
 
-	data, err := os.ReadFile(*jsonPath)
+	data, err := localfile.ReadCapped(*jsonPath, localfile.MaxLegacyStateBytes)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1

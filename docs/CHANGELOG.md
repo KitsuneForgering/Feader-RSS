@@ -4,6 +4,24 @@ All notable changes to Feader RSS are documented in this file.
 
 ## [Unreleased]
 
+### Security
+- The panel no longer reads `rss-reader.json` or `preferences.json` whole into
+  the shell. Both are read with a 1 MiB ceiling that is checked before the
+  file is loaded, so an oversized imported or restored file is rejected
+  (with a status message for the feed configuration) instead of exhausting
+  the shell's memory before JSON parsing and the feed limits apply.
+- `feader-rss-fetch` reads the feed configuration, imported OPML and the
+  legacy `items.json` with byte ceilings (1 MiB, 8 MiB and 64 MiB) instead of
+  loading them whole.
+
+### Fixed
+- The article title is underlined on hover again (it read a `hovered`
+  property that `MouseArea` does not have).
+
+### Changed
+- CI runs qmllint 6.11 over the QML files, and a test guards against
+  unbounded reads of user-editable files in both the panel and the Go helper.
+
 ## [0.4.0] - 2026-09-21
 
 ### Added
