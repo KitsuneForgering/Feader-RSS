@@ -32,7 +32,7 @@ jobs:
         run: python -m json.tool manifest.json >/dev/null
 
       - name: Install qmllint
-        run: python -m pip install --require-hashes --only-binary=:all: -r tests/requirements-qmllint.txt
+        run: "python -m pip install --require-hashes --only-binary=:all: -r tests/requirements-qmllint.txt"
 
       - name: Run tests
         env:
