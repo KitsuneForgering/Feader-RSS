@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
 INSTALL_SCRIPT_TEXT = (ROOT / "scripts/install.sh").read_text()
-REPO = "KitsuneSemCalda/Feader-RSS"
+REPO = "KitsuneForgering/Feader-RSS"
 VERSION = re.search(r'"version"\s*:\s*"([^"]+)"', (ROOT / "manifest.json").read_text()).group(1)
 ASSET_NAME = f"feader-rss-fetch_{VERSION}_linux_amd64"
 ASSET_CONTENT = "fake-binary-bytes-for-tests"

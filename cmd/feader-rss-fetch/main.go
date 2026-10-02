@@ -30,11 +30,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/KitsuneSemCalda/feader-rss/internal/article"
-	"github.com/KitsuneSemCalda/feader-rss/internal/feed"
-	"github.com/KitsuneSemCalda/feader-rss/internal/localfile"
-	"github.com/KitsuneSemCalda/feader-rss/internal/opml"
-	"github.com/KitsuneSemCalda/feader-rss/internal/store"
+	"github.com/KitsuneForgering/feader-rss/internal/article"
+	"github.com/KitsuneForgering/feader-rss/internal/feed"
+	"github.com/KitsuneForgering/feader-rss/internal/localfile"
+	"github.com/KitsuneForgering/feader-rss/internal/opml"
+	"github.com/KitsuneForgering/feader-rss/internal/store"
 )
 
 type feedError struct {

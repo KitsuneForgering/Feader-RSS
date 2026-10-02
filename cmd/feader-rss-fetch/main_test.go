@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	readerArticle "github.com/KitsuneSemCalda/feader-rss/internal/article"
-	"github.com/KitsuneSemCalda/feader-rss/internal/feed"
-	"github.com/KitsuneSemCalda/feader-rss/internal/localfile"
-	"github.com/KitsuneSemCalda/feader-rss/internal/opml"
-	"github.com/KitsuneSemCalda/feader-rss/internal/store"
+	readerArticle "github.com/KitsuneForgering/feader-rss/internal/article"
+	"github.com/KitsuneForgering/feader-rss/internal/feed"
+	"github.com/KitsuneForgering/feader-rss/internal/localfile"
+	"github.com/KitsuneForgering/feader-rss/internal/opml"
+	"github.com/KitsuneForgering/feader-rss/internal/store"
 )
 
 func captureCLI(t *testing.T, fn func() int) (stdout, stderr string, code int) {

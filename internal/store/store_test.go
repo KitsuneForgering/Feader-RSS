@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/KitsuneSemCalda/feader-rss/internal/feed"
+	"github.com/KitsuneForgering/feader-rss/internal/feed"
 )
 
 func openTestStore(t *testing.T) *Store {

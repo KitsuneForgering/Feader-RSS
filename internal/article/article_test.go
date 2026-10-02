@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/KitsuneSemCalda/feader-rss/internal/safefetch"
+	"github.com/KitsuneForgering/feader-rss/internal/safefetch"
 )
 
 const samplePage = `<!doctype html>

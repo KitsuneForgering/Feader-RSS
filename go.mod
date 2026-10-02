@@ -1,4 +1,4 @@
-module github.com/KitsuneSemCalda/feader-rss
+module github.com/KitsuneForgering/feader-rss
 
 go 1.27.0
 

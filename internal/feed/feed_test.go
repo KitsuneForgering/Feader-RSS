@@ -10,7 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/KitsuneSemCalda/feader-rss/internal/safefetch"
+	"github.com/KitsuneForgering/feader-rss/internal/safefetch"
 )
 
 const rssSample = `<?xml version="1.0"?>

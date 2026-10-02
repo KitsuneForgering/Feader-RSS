@@ -13,8 +13,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/KitsuneSemCalda/feader-rss/internal/feed"
-	"github.com/KitsuneSemCalda/feader-rss/internal/localfile"
+	"github.com/KitsuneForgering/feader-rss/internal/feed"
+	"github.com/KitsuneForgering/feader-rss/internal/localfile"
 )
 
 // legacyStateFilename is the JSON state file older (pre-SQLite) versions of

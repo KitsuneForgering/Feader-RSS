@@ -6,7 +6,7 @@ set -euo pipefail
 plugin_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 plugin_id="io.github.kitsunesemcalda.feader-rss"
 destination="${XDG_CONFIG_HOME:-${HOME}/.config}/omarchy/plugins/${plugin_id}"
-repo="KitsuneSemCalda/Feader-RSS"
+repo="KitsuneForgering/Feader-RSS"
 binary_name="feader-rss-fetch"
 
 if ! command -v omarchy >/dev/null 2>&1; then

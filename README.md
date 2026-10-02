@@ -3,9 +3,9 @@
 A persistent RSS reader for the Omarchy shell, built as a Quickshell plugin.
 
 <p align="center">
-  <a href="https://github.com/KitsuneSemCalda/Feader-RSS/actions/workflows/ci.yml"><img src="https://github.com/KitsuneSemCalda/Feader-RSS/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
-  <a href="https://github.com/KitsuneSemCalda/Feader-RSS/releases/latest"><img src="https://img.shields.io/github/v/release/KitsuneSemCalda/Feader-RSS" alt="Latest release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/KitsuneSemCalda/Feader-RSS" alt="License"></a>
+  <a href="https://github.com/KitsuneForgering/Feader-RSS/actions/workflows/ci.yml"><img src="https://github.com/KitsuneForgering/Feader-RSS/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/KitsuneForgering/Feader-RSS/releases/latest"><img src="https://img.shields.io/github/v/release/KitsuneForgering/Feader-RSS" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/KitsuneForgering/Feader-RSS" alt="License"></a>
 </p>
 
 <p align="center">
@@ -24,7 +24,7 @@ A persistent RSS reader for the Omarchy shell, built as a Quickshell plugin.
 With Omarchy and the Go version specified in `go.mod` installed:
 
 ```bash
-git clone https://github.com/KitsuneSemCalda/Feader-RSS.git
+git clone https://github.com/KitsuneForgering/Feader-RSS.git
 cd Feader-RSS
 ./scripts/install.sh
 ```

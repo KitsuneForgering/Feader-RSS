@@ -16,7 +16,7 @@ import (
 
 	htmlparser "golang.org/x/net/html"
 
-	"github.com/KitsuneSemCalda/feader-rss/internal/safefetch"
+	"github.com/KitsuneForgering/feader-rss/internal/safefetch"
 )
 
 const MaxResponseBytes = 5 * 1024 * 1024
