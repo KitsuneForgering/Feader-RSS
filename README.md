@@ -32,23 +32,16 @@ cd Feader-RSS
 The installer validates the manifest, builds the backend in a staging
 directory, and copies the required files to
 `~/.config/omarchy/plugins/io.github.kitsunesemcalda.feader-rss/`, then enables
-the widget in the right bar section. It preserves your feed configuration and
-creates a timestamped backup of the configuration, UI preferences, and SQLite
-article database, then keeps the active article cache so read/unread state
-persists across updates. If the shell does not detect the copy immediately, run
-`omarchy restart shell`.
+the widget in the right bar section. If the shell does not detect the copy
+immediately, run `omarchy restart shell`.
 
-Backups are stored separately in
-`~/.local/state/omarchy/rss-reader/backups/`. To create one manually, run
-`./scripts/backup.sh`.
-Each backup contains `rss-reader.json`, `preferences.json`, and an `items.db`
-snapshot when those files exist. The SQLite snapshot uses SQLite's online
-backup API, so committed data in the WAL is included and no `-wal`/`-shm`
-sidecars need to be copied. Older backups containing only `items.json` remain
-accepted for compatibility.
-To restore a backup, run `./scripts/restore.sh /path/to/backup`; the current
-data is backed up first, and an `items.db` snapshot replaces the active
-database even when it already contains articles.
+Click the Feader icon in the bar, open **Configure feeds**, and add an RSS or
+Atom URL. Refresh the reader to see the feed's articles; selecting one opens
+its cached text. The plugin needs network access to fetch configured feeds.
+
+The installer preserves your existing feed configuration and reading state and
+creates a timestamped backup before updating them. See [Backups and restore](#backups-and-restore)
+for recovery commands.
 
 ## Distribution through the Omarchy plugin system
 
@@ -171,6 +164,19 @@ page in the browser. The unread badge and notification count the complete
 configured-feed database, not only the first `maxItems` visible rows. Feed
 refreshes retry transient network/5xx failures with exponential backoff, while
 failed article prefetches are remembered and delayed for up to six hours.
+
+## Backups and restore
+
+Backups are stored in `~/.local/state/omarchy/rss-reader/backups/`. To create
+one manually, run `./scripts/backup.sh`. Each backup contains
+`rss-reader.json`, `preferences.json`, and an `items.db` snapshot when those
+files exist. The SQLite snapshot uses SQLite's online backup API, so committed
+data in the WAL is included. Older backups containing only `items.json` remain
+accepted for compatibility.
+
+To restore a backup, run `./scripts/restore.sh /path/to/backup`. The current
+data is backed up first; an `items.db` snapshot replaces the active database
+even when it already contains articles.
 
 ## Theme and notifications
 
